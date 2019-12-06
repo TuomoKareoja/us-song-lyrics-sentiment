@@ -75,15 +75,11 @@ target/
 # Jupyter NB Checkpoints
 .ipynb_checkpoints/
 
-# exclude data from source control by default
-/data/raw/*
-/data/predictions/*
+# exclude processed data from source control by default
+/data/interim/*
 /data/processed/*
-/data/external/*
-!/data/raw/.gitkeep
-!/data/predictions/.gitkeep
+!/data/interim/.gitkeep
 !/data/processed/.gitkeep
-!/data/external/.gitkeep
 
 # Mac OS-specific storage files
 .DS_Store

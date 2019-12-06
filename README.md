@@ -12,6 +12,7 @@ Project Organization
     ├── data
     │   ├── external       <- Data from third party sources
     │   ├── processed      <- The final, canonical data sets for modeling
+    │   ├── interim        <- Intermediate data that has been transformed
     │   └── raw            <- The original, immutable data dump
     │
     ├── docs               <- html docs for GitHub Pages
@@ -45,7 +46,6 @@ Project Organization
     │   └── visualization  <- Scripts to create exploratory and results oriented visualizations
     │
     └── tox.ini            <- tox file with settings for running tox; see tox.testrun.org
-
 
 --------
 
