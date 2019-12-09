@@ -3,6 +3,7 @@ import logging
 import os
 import re
 import time
+import traceback
 from contextlib import closing
 from pathlib import Path
 
@@ -23,31 +24,33 @@ def main():
 
     logger = logging.getLogger(__name__)
 
-    logger.info("Fetching songs and artist")
+    # logger.info("Fetching songs and artist")
 
-    years = [year for year in range(1960, 2016)]
-    urls = create_urls(years)
-    songs_df = fetch_and_parse(urls, years)
+    # years = [year for year in range(1960, 2016)]
+    # urls = create_urls(years)
+    # songs_df = fetch_and_parse(urls, years)
 
-    logger.info("Adding 2013 info from data/raw/ (nasty format in the website)")
+    # logger.info("Adding 2013 info from data/raw/ (nasty format in the website)")
 
-    # have to use ; for separator as song names contain commas
-    songs_df_2013 = pd.read_csv(
-        os.path.join("data", "raw", "2013_top_100.csv"), sep=";"
-    )
-    songs_df = pd.concat([songs_df, songs_df_2013], ignore_index=True)
+    # # have to use ; for separator as song names contain commas
+    # songs_df_2013 = pd.read_csv(
+    #     os.path.join("data", "raw", "2013_top_100.csv"), sep=";"
+    # )
+    # songs_df = pd.concat([songs_df, songs_df_2013], ignore_index=True)
 
-    logger.info("Saving song and artist data to disk")
+    # songs_df["lyrics"] = None
 
-    songs_df.to_csv(
-        os.path.join("data", "raw", "billboard100_1960-2015.csv"), index=False, sep=";"
-    )
+    # logger.info("Saving song and artist data to disk")
+
+    # songs_df.to_csv(
+    #     os.path.join("data", "raw", "billboard100_1960-2015.csv"), index=False, sep=";"
+    # )
 
     logger.info("Fetching song lyrics")
 
-    # songs_df = pd.read_csv(
-    #     os.path.join("data", "raw", "billboard100_1960-2015.csv"), sep=";"
-    # )
+    songs_df = pd.read_csv(
+        os.path.join("data", "raw", "billboard100_1960-2015.csv"), sep=";"
+    )
 
     lyrics = []
 
@@ -55,14 +58,20 @@ def main():
 
     for row_index, row in songs_df.iterrows():
         logger.info(f"Song {row_index + 1} / {songs_amount}")
-        lyric = get_lyrics(row["artist"], row["song"], apikey, use_spotify_api=False)
+        if not row["lyrics"]:
+            lyric = get_lyrics(
+                row["artist"], row["song"], apikey, use_spotify_api=False
+            )
+        else:
+            lyric = row["lyrics"]
         # making sure that we don't go over the API limit
         time.sleep(0.51)
         if not lyric:
-            # spotify api is slower, but finds results easier
+            # spotify api is slower, but usually finds results easier
             lyric = get_lyrics(row["artist"], row["song"], apikey, use_spotify_api=True)
             time.sleep(0.51)
 
+        print(lyric)
         lyrics.append(lyric)
 
     songs_df["lyrics"] = lyrics
@@ -70,8 +79,7 @@ def main():
     logger.info("Saving to disk")
 
     songs_df.to_csv(
-        os.path.join("data", "raw", "billboard100_1960-2015_with_lyrics.csv"),
-        index=False,
+        os.path.join("data", "raw", "billboard100_1960-2015.csv"), index=False
     )
 
 
@@ -112,11 +120,11 @@ def get_lyrics(artist, song_title, apikey, use_spotify_api):
         lyric = r.json()["result"]["lyrics"]
         # removing line changes with spaces
         lyric = lyric.replace("\n", " ")
-        print(lyric)
         return lyric
 
-    except Exception as e:
-        return "Exception occurred \n" + str(e)
+    except Exception:
+        traceback.print_exc()
+        return None
 
 
 def simple_get(url):
