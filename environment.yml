@@ -15,7 +15,11 @@ dependencies:
   - beautifulsoup4
   - jupyter
   - flake8
+  - wordcloud
+  - fbprophet
   - python-dotenv>=0.5.1
   - pip
   - pip:
       - afinn
+      - pmdarima
+      - nltk

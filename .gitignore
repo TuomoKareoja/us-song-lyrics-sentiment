@@ -76,10 +76,13 @@ target/
 .ipynb_checkpoints/
 
 # exclude processed data from source control by default
+# src lexicon library not included
 /data/interim/*
 /data/processed/*
+/data/lexicons/*
 !/data/interim/.gitkeep
 !/data/processed/.gitkeep
+!/data/lexicons/.gitkeep
 
 # Mac OS-specific storage files
 .DS_Store
