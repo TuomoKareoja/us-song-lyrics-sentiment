@@ -3,9 +3,9 @@ import logging
 import os
 import re
 import time
-import traceback
 from contextlib import closing
 from pathlib import Path
+from xml.etree import ElementTree
 
 import pandas as pd
 import requests
@@ -20,31 +20,33 @@ def main():
         uses this data to fetch the song lyrics from an API
     """
 
-    apikey = os.getenv("RAPIDAPIKEY")
+    rapidapi_key = os.getenv("RAPIDAPIKEY")
+    geniuslyrics_key = os.getenv("GENIUSLYRICSKEY")
 
     logger = logging.getLogger(__name__)
 
-    # logger.info("Fetching songs and artist")
+    logger.info("Fetching songs and artist")
 
-    # years = [year for year in range(1960, 2016)]
-    # urls = create_urls(years)
-    # songs_df = fetch_and_parse(urls, years)
+    years = [year for year in range(1960, 2016)]
+    urls = create_urls(years)
+    songs_df = fetch_and_parse(urls, years)
 
-    # logger.info("Adding 2013 info from data/raw/ (nasty format in the website)")
+    logger.info("Adding 2013 info from data/raw/ (nasty format in the website)")
 
-    # # have to use ; for separator as song names contain commas
-    # songs_df_2013 = pd.read_csv(
-    #     os.path.join("data", "raw", "2013_top_100.csv"), sep=";"
-    # )
-    # songs_df = pd.concat([songs_df, songs_df_2013], ignore_index=True)
+    # have to use ; for separator as song names contain commas
+    songs_df_2013 = pd.read_csv(
+        os.path.join("data", "raw", "2013_top_100.csv"), sep=";"
+    )
+    songs_df = pd.concat([songs_df, songs_df_2013], ignore_index=True)
 
-    # songs_df["lyrics"] = None
+    songs_df["lyrics"] = "Not searched"
+    songs_df["lyrics_source"] = None
 
-    # logger.info("Saving song and artist data to disk")
+    logger.info("Saving song and artist data to disk")
 
-    # songs_df.to_csv(
-    #     os.path.join("data", "raw", "billboard100_1960-2015.csv"), index=False, sep=";"
-    # )
+    songs_df.to_csv(
+        os.path.join("data", "raw", "billboard100_1960-2015.csv"), index=False, sep=";"
+    )
 
     logger.info("Fetching song lyrics")
 
@@ -52,38 +54,46 @@ def main():
         os.path.join("data", "raw", "billboard100_1960-2015.csv"), sep=";"
     )
 
-    lyrics = []
-
     songs_amount = len(songs_df)
+    fetched_songs = 0
 
     for row_index, row in songs_df.iterrows():
         logger.info(f"Song {row_index + 1} / {songs_amount}")
-        if not row["lyrics"]:
-            lyric = get_lyrics(
-                row["artist"], row["song"], apikey, use_spotify_api=False
+
+        if row["lyrics"] == "Not searched":
+
+            # slowing down request so that we cause no trouble
+            time.sleep(0.3)
+
+            lyric, source = get_lyric_from_apis(
+                artist=row["artist"],
+                song_title=row["song"],
+                rapidapi_key=rapidapi_key,
+                geniuslyrics_key=geniuslyrics_key,
             )
-        else:
-            lyric = row["lyrics"]
-        # making sure that we don't go over the API limit
-        time.sleep(0.51)
-        if not lyric:
-            # spotify api is slower, but usually finds results easier
-            lyric = get_lyrics(row["artist"], row["song"], apikey, use_spotify_api=True)
-            time.sleep(0.51)
+            songs_df.iloc[row_index, songs_df.columns.get_loc("lyrics")] = lyric
+            songs_df.iloc[row_index, songs_df.columns.get_loc("lyrics_source")] = source
 
-        print(lyric)
-        lyrics.append(lyric)
+            fetched_songs += 1
+            print(lyric)
 
-    songs_df["lyrics"] = lyrics
+        # saving every after every 100 fetched lyrics
+        if fetched_songs > 0 and fetched_songs % 100 == 0:
+            print("Saving progress")
+            songs_df.to_csv(
+                os.path.join("data", "raw", "billboard100_1960-2015.csv"),
+                sep=";",
+                index=False,
+            )
 
     logger.info("Saving to disk")
 
     songs_df.to_csv(
-        os.path.join("data", "raw", "billboard100_1960-2015.csv"), index=False
+        os.path.join("data", "raw", "billboard100_1960-2015.csv"), sep=";", index=False
     )
 
 
-def get_lyrics(artist, song_title, apikey, use_spotify_api):
+def get_lyrics_mouritz(artist, song_title, use_spotify_api, rapidapi_key):
     """Fetches song lyrics for provided artist and song from Mouritz Lyrics API
 
     :param artist: Name of the artist
@@ -107,24 +117,119 @@ def get_lyrics(artist, song_title, apikey, use_spotify_api):
 
     headers = {
         "x-rapidapi-host": "mourits-lyrics.p.rapidapi.com",
-        "x-rapidapi-key": apikey,
+        "x-rapidapi-key": rapidapi_key,
     }
 
     if use_spotify_api:
         payload = {"q": artist + " " + song_title}
     else:
         payload = {"a": artist, "s": song_title}
-
     try:
         r = requests.get(url, params=payload, headers=headers)
         lyric = r.json()["result"]["lyrics"]
-        # removing line changes with spaces
-        lyric = lyric.replace("\n", " ")
-        return lyric
+
+        return lyric, "mourits"
 
     except Exception:
-        traceback.print_exc()
-        return None
+        return None, None
+
+
+def get_lyrics_chartlyrics(artist, song_title):
+
+    url = f"http://api.chartlyrics.com/apiv1.asmx/SearchLyricDirect"
+
+    payload = {"artist": artist, "song": song_title}
+
+    try:
+        r = requests.get(url, params=payload)
+        tree = ElementTree.fromstring(r.text)
+        lyric = tree.find("{http://api.chartlyrics.com/}Lyric").text
+
+        return lyric, "chartlyrics"
+
+    except Exception:
+        return None, None
+
+
+def get_lyrics_geniuslyrics(artist, song_title, geniuslyrics_key):
+
+    base_url = "http://api.genius.com"
+    search_url = base_url + "/search"
+
+    headers = {f"Authorization": "Bearer {geniuslyrics_key}"}
+    data = {"q": song_title}
+
+    lyrics = None
+    song_info = None
+
+    try:
+
+        response = requests.get(search_url, data=data, headers=headers)
+        json = response.json()
+
+        # find the right artist from all the results
+        for hit in json["response"]["hits"]:
+            if hit["result"]["primary_artist"]["name"] == artist:
+                song_info = hit
+                break
+
+        # if song for the right artist found scrape the lyrics
+        if song_info:
+            song_api_path = song_info["result"]["api_path"]
+            song_url = base_url + song_api_path
+            response = requests.get(song_url, headers=headers)
+            json = response.json()
+            path = json["response"]["song"]["path"]
+            page_url = "http://genius.com" + path
+            page = requests.get(page_url)
+            html = BeautifulSoup(page.text, "html.parser")
+            # remove script tags in the lyrics
+            [h.extract() for h in html("script")]
+            lyrics = html.find("div", class_="lyrics").get_text()
+
+            return lyrics, "genius"
+
+        else:
+            return None, None
+
+    except Exception:
+        return None, None
+
+
+def get_lyric_from_apis(artist, song_title, rapidapi_key, geniuslyrics_key):
+
+    lyric = None
+    source = None
+
+    lyric, source = get_lyrics_mouritz(
+        artist, song_title, use_spotify_api=False, rapidapi_key=rapidapi_key
+    )
+    if lyric is None or (1 > len(lyric.strip()) > 100000):
+        lyric, source = get_lyrics_chartlyrics(artist, song_title)
+    if lyric is None or (1 > len(lyric.strip()) > 100000):
+        lyric, source = get_lyrics_geniuslyrics(
+            artist, song_title, geniuslyrics_key=geniuslyrics_key
+        )
+    if lyric is None or (1 > len(lyric.strip()) > 100000):
+
+        # wait because second time addressing mourits
+        # and we don't want to go over the limit
+        time.sleep(0.3)
+        lyric, source = get_lyrics_mouritz(
+            artist, song_title, use_spotify_api=True, rapidapi_key=rapidapi_key
+        )
+
+    if lyric is None or (1 > len(lyric.strip()) > 100000):
+        lyric = "Not found"
+        source = None
+
+    else:
+        # semicolons would mess up the separators in csv
+        lyric = lyric.replace(";", " ")
+        # line changes also mess up the csv
+        lyric = lyric.replace("\n", " ")
+
+    return lyric, source
 
 
 def simple_get(url):
