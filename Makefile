@@ -45,6 +45,8 @@ requirements:
 ifeq (True,$(HAS_CONDA))
 	@echo ">>> Detected conda, updating activated conda environment."
 	conda env update --file environment.yml
+	# downloading nltk data
+	python -m nltk.downloader all
 	# adding src-files to enviroment for easy importing
 	python -m pip install -e .
 	@echo ">>> Conda enviroment updated"

@@ -17,9 +17,11 @@ dependencies:
   - flake8
   - wordcloud
   - fbprophet
+  - nltk
+  - langdetect
   - python-dotenv>=0.5.1
   - pip
   - pip:
       - afinn
       - pmdarima
-      - nltk
+      - spotipy

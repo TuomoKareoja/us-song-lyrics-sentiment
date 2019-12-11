@@ -9,10 +9,12 @@ from xml.etree import ElementTree
 
 import pandas as pd
 import requests
+import spotipy
 from bs4 import BeautifulSoup
 from dotenv import find_dotenv, load_dotenv
 from requests import get
 from requests.exceptions import RequestException
+from spotipy.oauth2 import SpotifyClientCredentials
 
 
 def main():
@@ -22,6 +24,8 @@ def main():
 
     rapidapi_key = os.getenv("RAPIDAPIKEY")
     geniuslyrics_key = os.getenv("GENIUSLYRICSKEY")
+    spotify_client_id = os.getenv("SPOTIFYCLIENTID")
+    spotify_secret_key = os.getenv("SPOTIFYSECRETKEY")
 
     logger = logging.getLogger(__name__)
 
@@ -60,10 +64,10 @@ def main():
     for row_index, row in songs_df.iterrows():
         logger.info(f"Song {row_index + 1} / {songs_amount}")
 
-        if row["lyrics"] == "Not searched":
+        if row["lyrics"] == "Not searched" or row["lyrics"] == "Not found":
 
-            # slowing down request so that we cause no trouble
-            time.sleep(0.3)
+            # slowing down requests so that we cause no trouble
+            time.sleep(0.5)
 
             lyric, source = get_lyric_from_apis(
                 artist=row["artist"],
@@ -77,16 +81,34 @@ def main():
             fetched_songs += 1
             print(lyric)
 
-        # saving every after every 100 fetched lyrics
-        if fetched_songs > 0 and fetched_songs % 100 == 0:
-            print("Saving progress")
-            songs_df.to_csv(
-                os.path.join("data", "raw", "billboard100_1960-2015.csv"),
-                sep=";",
-                index=False,
-            )
+            # saving every after every 100 fetched lyrics
+            if fetched_songs > 0 and fetched_songs % 100 == 0:
+                print("Saving progress")
+                songs_df.to_csv(
+                    os.path.join("data", "raw", "billboard100_1960-2015.csv"),
+                    sep=";",
+                    index=False,
+                )
 
-    logger.info("Saving to disk")
+    songs_df.to_csv(
+        os.path.join("data", "raw", "billboard100_1960-2015.csv"), sep=";", index=False
+    )
+
+    songs_df = pd.read_csv(
+        os.path.join("data", "raw", "billboard100_1960-2015.csv"), sep=";"
+    )
+
+    logger.info("Fetching audio features from Spotify API")
+
+    audio_features_df = get_spotify_audiofeatures(
+        artists=songs_df["artist"],
+        song_titles=songs_df["song"],
+        spotify_client_id=spotify_client_id,
+        spotify_secret_key=spotify_secret_key,
+    )
+    songs_df = pd.concat([songs_df, audio_features_df], axis="columns")
+
+    logger.info("Saving final dataset to disk")
 
     songs_df.to_csv(
         os.path.join("data", "raw", "billboard100_1960-2015.csv"), sep=";", index=False
@@ -204,12 +226,12 @@ def get_lyric_from_apis(artist, song_title, rapidapi_key, geniuslyrics_key):
     lyric, source = get_lyrics_mouritz(
         artist, song_title, use_spotify_api=False, rapidapi_key=rapidapi_key
     )
-    if lyric is None or (1 > len(lyric.strip()) > 100000):
-        lyric, source = get_lyrics_chartlyrics(artist, song_title)
-    if lyric is None or (1 > len(lyric.strip()) > 100000):
-        lyric, source = get_lyrics_geniuslyrics(
-            artist, song_title, geniuslyrics_key=geniuslyrics_key
-        )
+    # if lyric is None or (1 > len(lyric.strip()) > 100000):
+    # lyric, source = get_lyrics_chartlyrics(artist, song_title)
+    # if lyric is None or (1 > len(lyric.strip()) > 100000):
+    #     lyric, source = get_lyrics_geniuslyrics(
+    #         artist, song_title, geniuslyrics_key=geniuslyrics_key
+    #     )
     if lyric is None or (1 > len(lyric.strip()) > 100000):
 
         # wait because second time addressing mourits
@@ -332,6 +354,86 @@ def fetch_and_parse(urls, years):
     df = pd.DataFrame(
         {"position": positions, "artist": artists, "song": songs, "year": chart_years}
     )
+
+    return df
+
+
+def get_spotify_audiofeatures(
+    artists, song_titles, spotify_client_id, spotify_secret_key
+):
+
+    audio_features_to_keep = [
+        "duration_ms",
+        "danceability",
+        "energy",
+        "loudness",
+        "speechiness",
+        "acousticness",
+        "instrumentalness",
+        "valence",
+        "tempo",
+        "time_signature",
+    ]
+
+    # Authenticating to spotify client
+    client_credentials_manager = SpotifyClientCredentials(
+        client_id=spotify_client_id, client_secret=spotify_secret_key
+    )
+    sp = spotipy.Spotify(client_credentials_manager=client_credentials_manager)
+
+    audio_features = []
+
+    songs_amount = len(artists)
+
+    for i, (artist, song_title) in enumerate(zip(artists, song_titles)):
+
+        search_str = artist + " " + song_title
+
+        # search for track information
+        result = sp.search(q=search_str, limit=1, type="track")
+
+        # if no results found create and empty dictionary
+        if result["tracks"]["total"] == 0:
+            song_audio_features = {
+                audio_feat_key: None for audio_feat_key in audio_features_to_keep
+            }
+
+            print(f"Song {i + 1} / {songs_amount}: not found")
+
+        # if results found search audio features with the ID
+        else:
+            # extracting ID
+            song_id = result["tracks"]["items"][0]["id"]
+            # fetching audio features
+            result = sp.audio_features(tracks=[song_id])
+            # keeping just the dict
+            result = result[0]
+
+            # trying to get audiofeatures from result
+            # if fail then return an empty dict
+            try:
+
+                # dropping unnecessary features
+                song_audio_features = {
+                    audio_feat_key: result[audio_feat_key]
+                    for audio_feat_key in audio_features_to_keep
+                    if audio_feat_key in result
+                }
+
+                print(f"Song {i + 1} / {songs_amount}: {song_audio_features}")
+
+            except Exception:
+
+                song_audio_features = {
+                    audio_feat_key: None for audio_feat_key in audio_features_to_keep
+                }
+
+                print(f"Song {i + 1} / {songs_amount}: could not be extracted")
+
+        audio_features.append(song_audio_features)
+
+    # create a dataframe with the list of dictionaries
+    df = pd.DataFrame(data=audio_features)
 
     return df
 
