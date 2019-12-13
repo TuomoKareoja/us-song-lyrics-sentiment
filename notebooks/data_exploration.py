@@ -1,15 +1,16 @@
 # %%
 
+import collections
 import os
 
 import matplotlib.pyplot as plt
+import nltk
 import numpy as np
 import pandas as pd
 import seaborn as sns
 from afinn import Afinn
 from IPython.core.interactiveshell import InteractiveShell
 from langdetect import DetectorFactory, detect
-import nltk
 from nltk.stem import WordNetLemmatizer
 from wordcloud import WordCloud
 
@@ -23,39 +24,7 @@ random_seed = 123
 
 # %% load_data
 
-df = pd.read_csv(
-    os.path.join("data", "raw", "billboard100_1960-2015copy3.csv"), sep=";"
-)
-
-# %%
-
-# Making all missing values np.nan
-
-df.fillna(value=pd.np.nan, inplace=True)
-
-# %% missing data
-
-df.dtypes
-
-# %% lyrics missing
-
-print(
-    round(len(df[df["lyrics"] == "Not found"]) / len(df) * 100, 1),
-    "% of lyrics missing",
-)
-
-# %% distribution of the length of lyrics
-
-sns.boxplot(df["lyrics"].str.len())
-plt.xlabel("Number of letters in the lyrics")
-plt.show()
-
-# %% what is the biggest outlier in char count
-
-
-df[df["lyrics"].str.len() > 7000]
-# Eminem's Rap God. Makes total sense
-
+df = pd.read_csv(os.path.join("data", "raw", "billboard100_1960-2015.csv"), sep=";")
 
 # %% # marking not found as truly missing
 
@@ -119,10 +88,11 @@ df["lyrics"].replace(all_patterns, "", regex=True, inplace=True)
 
 # TODO:
 # remove \x
+df["lyrics"].replace(r"\x", "", inplace=True)
 
 # remove
 # still leaves single quotes as these are used in actual words
-df["lyrics"].replace(r'[*.;:!?,"()\[\]]', "", regex=True, inplace=True)
+df["lyrics"].replace(r'[+=#*.;:!?,"(){}\[\]]', "", regex=True, inplace=True)
 
 # replacing with space
 # - is still kept as it is used in actual words
@@ -141,6 +111,10 @@ df["lyrics"].replace(r"(<br\s*/><br\s*/>)|(\/)", " ", regex=True, inplace=True)
 # %% remove numbers
 
 df["lyrics"].replace("[0-9]+", "", regex=True, inplace=True)
+
+# %% making the single quote marks proper
+
+df["lyrics"].replace(r"[“”’`]", "'", regex=True, inplace=True)
 
 # %% Finding which are the most common words with ' in them
 
@@ -401,22 +375,21 @@ replace_quote_words = {
 
 df["lyrics"].replace(replace_quote_words, inplace=True)
 
-# %% strip extra spaces again as some
+# removing single quote marks finally
+
+df["lyrics"].replace("'", "", inplace=True)
+
+# %% strip extra spaces again
 
 df["lyrics"] = df["lyrics"].str.strip()
 df["lyrics"].replace(r"\s+", " ", regex=True, inplace=True)
 
-# %% mark empty lyrics as np.nan
-
-df["lyrics"].where(df["lyrics"].str.len() > 0, np.nan, inplace=True)
-
 # %% recognise language
 
-
 # making sure there are no nones and just seeds
-df["lyrics"].fillna(value=pd.np.nan, inplace=True)
+df["lyrics"].fillna(np.nan, inplace=True)
 
-# language inference is non deterministic
+# language inference is non deterministic so
 # to keep things from changing around use seed
 DetectorFactory.seed = random_seed
 
@@ -431,7 +404,7 @@ for lyric in df["lyrics"]:
 
 # only real other languages are es, it, de, fr, others are mistakes
 song_languages = [
-    language if language in ["en", "es", "it", "de", "fr"] else "en"
+    language if language in ["en", "es", "it", "de", "fr", np.nan] else "en"
     for language in song_languages
 ]
 
@@ -476,8 +449,6 @@ df["perc_words_unique"] = df["unique_words"] / df["wordcount"]
 
 af = Afinn(emoticons=False)
 
-df["sentiment"] = [af.score(lyric) for lyric in df["lyrics_lemmatized"]]
-
 # Positive sentiment. Negative sentiment words count as 0
 df["sentiment_positive"] = [
     np.sum([np.max(af.score(word), 0) for word in lyric.split()])
@@ -489,6 +460,8 @@ df["sentiment_negative"] = [
     np.sum([np.absolute(np.min(af.score(word), 0)) for word in lyric.split()])
     for lyric in df["lyrics_lemmatized"]
 ]
+
+df["sentiment"] = df["sentiment_positive"] - df["sentiment_negative"]
 
 # Absolute value of the sentiment. Emotionally ladden lyrics
 # get high score regardles of valence
@@ -517,32 +490,77 @@ nrc_df = pd.read_csv(
 # as column names
 nrc_df["emotion"] = "nrc_" + nrc_df["emotion"]
 
-lyrics_tokenized = []
+# %% combining to data
 
-for lyric in [df["lyrics"]]:
-    lyric_words = nltk.word_tokenize(lyric)
-    lyrics_tokenized.append(lyric_words)
-
-lyrics_df = pd.DataFrame({"lyrics": lyrics_tokenized})
-lyrics_df = lyrics_df.explode("lyrics")
-lyrics_df = lyrics_df.reset_index(inplace=True)
-lyrics_df.columns = ["song_index", "word"]
-
-lyrics_df = lyrics_df.join(nrc_df, how="left", on="word")[
-    "song_index", "emotion", "score"
-]
-
+lyrics_df = df[["wordlist"]]
+lyrics_df = lyrics_df.explode("wordlist")
+lyrics_df.columns = ["word"]
+lyrics_df["song_index"] = lyrics_df.index
+lyrics_df = pd.merge(lyrics_df, nrc_df, how="left", on="word")
 lyrics_df = lyrics_df.groupby(["song_index", "emotion"], as_index=False)["score"].sum()
-
 lyrics_df = (
     lyrics_df.set_index(["song_index", "emotion"])["score"].unstack().reset_index()
 )
 
-df = pd.concat([df, lyrics_df], axis="columns")
+df = pd.merge(df, lyrics_df, how="left", left_index=True, right_on="song_index")
+df.drop(columns="song_index", inplace=True)
+
+
+# %% nrc sentiment per word
+
+nrc_columns = [column for column in df.columns if "nrc" in column]
+
+for emotion in nrc_columns:
+    df[emotion + "_per_word"] = df[emotion].divide(df["wordcount"])
+
+
+# %% replacing lyrics related columns with missing if there are no lyrics
+
+no_lyrics = df["lyrics"].str.len() == 0
+instrumental = df["instrumental"] == 1
+language_not_english = df["language"] != "en"
+
+lyric_columns = [
+    "lyrics",
+    "lyrics_lemmatized",
+    "wordlist",
+    "wordcount",
+    "unique_words",
+    "perc_words_unique",
+    "sentiment",
+    "sentiment_positive",
+    "sentiment_negative",
+    "sentiment_abs",
+    "sentiment_positive_per_word",
+    "sentiment_negative_per_word",
+    "sentiment_abs_per_word",
+    "nrc_anger",
+    "nrc_anticipation",
+    "nrc_disgust",
+    "nrc_fear",
+    "nrc_joy",
+    "nrc_negative",
+    "nrc_positive",
+    "nrc_sadness",
+    "nrc_surprise",
+    "nrc_trust",
+    "nrc_anger_per_word",
+    "nrc_anticipation_per_word",
+    "nrc_disgust_per_word",
+    "nrc_fear_per_word",
+    "nrc_joy_per_word",
+    "nrc_negative_per_word",
+    "nrc_positive_per_word",
+    "nrc_sadness_per_word",
+    "nrc_surprise_per_word",
+    "nrc_trust_per_word",
+]
+
+df[lyric_columns].mask(no_lyrics | instrumental | language_not_english, inplace=True)
 
 # %% Wordcloud
 
-lyrics_text = " ".join(review for review in df["lyrics"])
+lyrics_text = " ".join(df["lyrics_lemmatized"])
 wordcloud = WordCloud(max_font_size=40).generate(lyrics_text)
 plt.figure()
 plt.imshow(wordcloud, interpolation="bilinear")
@@ -552,11 +570,11 @@ plt.show()
 
 # %% Plot of word frequencies
 
-sns.countplot(lyrics_text)
-plt.title("Words by frequency")
-plt.xlabel("Year")
-plt.ylabel("% of Words Unique")
-plt.show()
+# sns.countplot(lyrics_text.str.split())
+# plt.title("Words by frequency")
+# plt.xlabel("Year")
+# plt.ylabel("% of Words Unique")
+# plt.show()
 
 # %% wordcount and unique words by time
 
@@ -644,32 +662,44 @@ plt.show()
 
 # %% NRC sentiment with time
 
-sns.lineplot(x="year", y="nrc_anticipation", data=df, label="Anticipation")
-sns.lineplot(x="year", y="nrc_disgust", data=df, label="Disgust")
-sns.lineplot(x="year", y="nrc_surprise", data=df, label="Surprise")
-sns.lineplot(x="year", y="nrc_positive", data=df, label="Positive")
-sns.lineplot(x="year", y="nrc_trust", data=df, label="Trust")
-sns.lineplot(x="year", y="nrc_sadness", data=df, label="Sadness")
-sns.lineplot(x="year", y="nrc_anger", data=df, label="Anger")
-sns.lineplot(x="year", y="nrc_joy", data=df, label="Joy")
-sns.lineplot(x="year", y="nrc_fear", data=df, label="Fear")
-sns.lineplot(x="year", y="nrc_negative", data=df, label="Negative")
+sns.lineplot(x="year", y="nrc_anticipation", ci=None, data=df, label="Anticipation")
+sns.lineplot(x="year", y="nrc_disgust", ci=None, data=df, label="Disgust")
+sns.lineplot(x="year", y="nrc_surprise", ci=None, data=df, label="Surprise")
+sns.lineplot(x="year", y="nrc_trust", ci=None, data=df, label="Trust")
+sns.lineplot(x="year", y="nrc_sadness", ci=None, data=df, label="Sadness")
+sns.lineplot(x="year", y="nrc_anger", ci=None, data=df, label="Anger")
+sns.lineplot(x="year", y="nrc_joy", ci=None, data=df, label="Joy")
+sns.lineplot(x="year", y="nrc_fear", ci=None, data=df, label="Fear")
 plt.title("Average NRC Sentiment by Year and Type")
 plt.xlabel("Year")
 plt.ylabel("Sentiment")
 plt.show()
 
-sns.lineplot(x="year", y="nrc_anticipation_per_word", data=df, label="Anticipation")
-sns.lineplot(x="year", y="nrc_disgust_per_word", data=df, label="Disgust")
-sns.lineplot(x="year", y="nrc_surprise_per_word", data=df, label="Surprise")
-sns.lineplot(x="year", y="nrc_positive_per_word", data=df, label="Positive")
-sns.lineplot(x="year", y="nrc_trust_per_word", data=df, label="Trust")
-sns.lineplot(x="year", y="nrc_sadness_per_word", data=df, label="Sadness")
-sns.lineplot(x="year", y="nrc_anger_per_word", data=df, label="Anger")
-sns.lineplot(x="year", y="nrc_joy_per_word", data=df, label="Joy")
-sns.lineplot(x="year", y="nrc_fear_per_word", data=df, label="Fear")
-sns.lineplot(x="year", y="nrc_negative_per_word", data=df, label="Negative")
+sns.lineplot(
+    x="year", y="nrc_anticipation_per_word", ci=None, data=df, label="Anticipation"
+)
+sns.lineplot(x="year", y="nrc_disgust_per_word", ci=None, data=df, label="Disgust")
+sns.lineplot(x="year", y="nrc_surprise_per_word", ci=None, data=df, label="Surprise")
+sns.lineplot(x="year", y="nrc_trust_per_word", ci=None, data=df, label="Trust")
+sns.lineplot(x="year", y="nrc_sadness_per_word", ci=None, data=df, label="Sadness")
+sns.lineplot(x="year", y="nrc_anger_per_word", ci=None, data=df, label="Anger")
+sns.lineplot(x="year", y="nrc_joy_per_word", ci=None, data=df, label="Joy")
+sns.lineplot(x="year", y="nrc_fear_per_word", ci=None, data=df, label="Fear")
 plt.title("Average NRC Sentiment per Word by Year and Type")
+plt.xlabel("Year")
+plt.ylabel("Sentiment")
+plt.show()
+
+sns.lineplot(x="year", y="nrc_positive", data=df, label="Positive")
+sns.lineplot(x="year", y="nrc_negative", data=df, label="Negative")
+plt.title("Average Overall NRC Sentiment by Year")
+plt.xlabel("Year")
+plt.ylabel("Sentiment")
+plt.show()
+
+sns.lineplot(x="year", y="nrc_positive_per_word", data=df, label="Positive")
+sns.lineplot(x="year", y="nrc_negative_per_word", data=df, label="Negative")
+plt.title("Average Overall NRC Sentiment per Word by Year")
 plt.xlabel("Year")
 plt.ylabel("Sentiment")
 plt.show()
