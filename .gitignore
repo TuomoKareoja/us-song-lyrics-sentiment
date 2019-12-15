@@ -83,6 +83,7 @@ target/
 !/data/interim/.gitkeep
 !/data/processed/.gitkeep
 !/data/lexicons/.gitkeep
+!/data/lexicons/quote_words.txt
 
 # Mac OS-specific storage files
 .DS_Store
