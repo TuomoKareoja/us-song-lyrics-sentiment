@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import logging
 import os
 from pathlib import Path
@@ -25,17 +24,20 @@ def main():
     logger.info("Loading data")
     df = pd.read_csv(os.path.join("data", "raw", "billboard100_1960-2015.csv"), sep=";")
 
-    logger.info("Marking instrumental pieces")
-    df = find_instrumentals(df)
+    logger.info("Changing song duration to minutes")
+    df = change_song_duration(df)
 
     logger.info("Fixing weird spelling")
     df = fix_weird_spellings(df)
 
+    logger.info("Recognizing language")
+    df = recognize_language(df)
+
     logger.info("Removing or replacing special characters")
     df = remove_or_replace_special_characters(df)
 
-    logger.info("Recognizing language")
-    df = recognize_language(df)
+    logger.info("Finding instrumental pieces")
+    df = find_instrumentals(df)
 
     logger.info("Lemmatizing lyrics")
     df = lemmatize(df)
@@ -53,23 +55,37 @@ def main():
     df = mark_lyrics_values_na(df)
 
     logger.info("Saving to data/processed/")
-    df.to_csv(os.path.join('data', 'processed', 'lyrics_processed.csv'), index=False)
+    df.to_csv(
+        os.path.join("data", "processed", "lyrics_processed.csv"), sep=";", index=False
+    )
+
+
+def change_song_duration(df):
+
+    df["duration_min"] = np.round(df["duration_ms"] / (1000 * 60))
+    df.drop(columns=["duration_ms"], inplace=True)
+
+    return df
 
 
 def find_instrumentals(df):
     # finding instrumental songs (if no lyrics then mark None)
-    # if less than 150 characters in lyrics also mark as instrumental
+    # if between 1 and 150 characters in lyrics also mark as instrumental
     # if spotify instrumentalness is more than 0.7 then instrumental
+    # if contains word instrumental in lyrics then instrumental
     df["instrumental"] = np.where(
-        (df["lyrics"].str.len() < 150)
+        ((df["lyrics"].str.len() > 0) & (df["lyrics"].str.len() <= 150))
         | (df["instrumentalness"] > 0.7)
-        | (df["lyrics"].str.lower().str.contains("instrumental")),
+        | (df["lyrics"].str.contains("instrumental")),
         1,
         np.where(df["lyrics"].isna(), np.nan, 0),
     )
 
     # remove lyrics from instrumental songs
     df["lyrics"].where(df["instrumental"] != 1, np.nan, inplace=True)
+
+    # remove language from instrumental songs
+    df["language"].where(df["instrumental"] != 1, np.nan, inplace=True)
 
     return df
 
@@ -78,19 +94,13 @@ def remove_or_replace_special_characters(df):
 
     # marking not found as truly missing
     df["lyrics"].replace("Not found", np.nan, inplace=True)
+
     # lowercase
     df["lyrics"] = df["lyrics"].str.lower()
-    # some instrumental songs have these marking
-    df["lyrics"].replace("---", "", inplace=True)
-    # strip end spaces
-    df["lyrics"] = df["lyrics"].str.strip()
-    # strip extra spaces
-    df["lyrics"].replace(r"\s+", " ", regex=True, inplace=True)
 
     # Remove everything within [] and () and {} including themselves
     # these are usually background vocals and metainfomation (chorus, verse, etc.)
     within_brackets_and_such = r"\[[^]]*\]|\([^)]*\)|\{[^}]*\}"
-
     # words marking the song structure or repetitions
     # also some found misspellings included
     song_structure_info = r"chorus|bridge|verse|chorous|repeat"
@@ -98,45 +108,28 @@ def remove_or_replace_special_characters(df):
     # markdown parts
     markdown_parts = r"\&amp quot|\&amp|\&quot"
 
+    # remove x times repetition markings
+    repeat_x_first = r"\sx\s?[0-9]\s"
+    repeat_number_first = r"\s[0-9]*\s?x\s"
+
     all_patterns = "|".join(
-        [within_brackets_and_such, song_structure_info, markdown_parts]
+        [
+            within_brackets_and_such,
+            song_structure_info,
+            markdown_parts,
+            repeat_x_first,
+            repeat_number_first,
+        ]
     )
+
     df["lyrics"].replace(all_patterns, "", regex=True, inplace=True)
 
     # remove \x
     df["lyrics"].replace(r"\x", "", inplace=True)
 
-    # remove
-    # still leaves single quotes as these are used in actual words
-    df["lyrics"].replace(r'[+=#*.;:!?,"(){}\[\]]', "", regex=True, inplace=True)
+    df["lyrics"].replace("[^a-z ]+", "", regex=True, inplace=True)
 
-    # replacing with space
-    # - is still kept as it is used in actual words
-    df["lyrics"].replace(r"(<br\s*/><br\s*/>)|(\/)|[_]", " ", regex=True, inplace=True)
-
-    # %% remove x times repetition markings
-
-    repeat_x_first = r"\sx\s?[0-9]\s"
-    repeat_number_first = r"\s[0-9]*\s?x\s"
-
-    all_patterns = "|".join([repeat_x_first, repeat_number_first])
-
-    # replacing with space so we don't combine words by accident
-    df["lyrics"].replace(r"(<br\s*/><br\s*/>)|(\/)", " ", regex=True, inplace=True)
-
-    # %% remove numbers
-
-    df["lyrics"].replace("[0-9]+", "", regex=True, inplace=True)
-
-    # %% making the single quote marks proper
-
-    df["lyrics"].replace(r"[“”’`]", "'", regex=True, inplace=True)
-
-    # removing single quote marks finally
-    df["lyrics"].replace("'", "", inplace=True)
-
-    # strip extra spaces again
-
+    # strip extra spaces
     df["lyrics"] = df["lyrics"].str.strip()
     df["lyrics"].replace(r"\s+", " ", regex=True, inplace=True)
 
@@ -217,7 +210,9 @@ def add_lyrics_agg_info(df):
 
     df["wordlist"] = df["lyrics_lemmatized"].str.split()
     df["wordcount"] = df["wordlist"].str.len()
+    df["words_per_min"] = df["wordcount"] / df["duration_min"]
     df["unique_words"] = df["wordlist"].apply(lambda x: len(set(x)))
+    df["unique_words_per_min"] = df["unique_words"] / df["duration_min"]
     df["perc_words_unique"] = df["unique_words"] / df["wordcount"]
 
     return df
@@ -249,6 +244,15 @@ def calculate_afinn_sentiment(df):
     df["sentiment_positive_per_word"] = df["sentiment_positive"].divide(df["wordcount"])
     df["sentiment_negative_per_word"] = df["sentiment_negative"].divide(df["wordcount"])
     df["sentiment_abs_per_word"] = df["sentiment_abs"].divide(df["wordcount"])
+
+    # sentiment per minute
+    df["sentiment_positive_per_min"] = df["sentiment_positive"].divide(
+        df["duration_min"]
+    )
+    df["sentiment_negative_per_min"] = df["sentiment_negative"].divide(
+        df["duration_min"]
+    )
+    df["sentiment_abs_per_min"] = df["sentiment_abs"].divide(df["duration_min"])
 
     return df
 
@@ -283,60 +287,71 @@ def calculate_emolex_sentiment(df):
     df = pd.merge(df, lyrics_df, how="left", left_index=True, right_on="song_index")
     df.drop(columns="song_index", inplace=True)
 
-    # nrc sentiment per word
+    # nrc sentiment per word and minute
     nrc_columns = [column for column in df.columns if "nrc" in column]
 
     for emotion in nrc_columns:
         df[emotion + "_per_word"] = df[emotion].divide(df["wordcount"])
+        df[emotion + "_per_min"] = df[emotion].divide(df["duration_min"])
 
     return df
 
 
 def mark_lyrics_values_na(df):
 
-    no_lyrics = df["lyrics"].str.len() == 0
-    instrumental = df["instrumental"] == 1
-    language_not_english = df["language"] != "en"
+    no_lyrics = df["lyrics_lemmatized"] == ""
 
     lyric_columns = [
-        "lyrics",
-        "lyrics_lemmatized",
-        "wordlist",
-        "wordcount",
-        "unique_words",
-        "perc_words_unique",
-        "sentiment",
-        "sentiment_positive",
-        "sentiment_negative",
-        "sentiment_abs",
-        "sentiment_positive_per_word",
-        "sentiment_negative_per_word",
-        "sentiment_abs_per_word",
-        "nrc_anger",
-        "nrc_anticipation",
-        "nrc_disgust",
-        "nrc_fear",
-        "nrc_joy",
-        "nrc_negative",
-        "nrc_positive",
-        "nrc_sadness",
-        "nrc_surprise",
-        "nrc_trust",
+        "nrc_anger_per_min",
         "nrc_anger_per_word",
+        "nrc_anger",
+        "nrc_anticipation_per_min",
         "nrc_anticipation_per_word",
+        "nrc_anticipation",
+        "nrc_disgust_per_min",
         "nrc_disgust_per_word",
+        "nrc_disgust",
+        "nrc_fear_per_min",
         "nrc_fear_per_word",
+        "nrc_fear",
+        "nrc_joy_per_min",
         "nrc_joy_per_word",
+        "nrc_joy",
+        "nrc_negative_per_min",
         "nrc_negative_per_word",
+        "nrc_negative",
+        "nrc_positive_per_min",
         "nrc_positive_per_word",
+        "nrc_positive",
+        "nrc_sadness_per_min",
         "nrc_sadness_per_word",
+        "nrc_sadness",
+        "nrc_surprise_per_min",
         "nrc_surprise_per_word",
+        "nrc_surprise",
+        "nrc_trust_per_min",
         "nrc_trust_per_word",
+        "nrc_trust",
+        "perc_words_unique",
+        "sentiment_abs_per_min",
+        "sentiment_abs_per_word",
+        "sentiment_abs",
+        "sentiment_negative_per_min",
+        "sentiment_negative_per_word",
+        "sentiment_negative",
+        "sentiment_positive_per_min",
+        "sentiment_positive_per_word",
+        "sentiment_positive",
+        "sentiment",
+        "unique_words_per_min",
+        "unique_words",
+        "wordcount",
+        "wordlist",
+        "words_per_min",
     ]
 
-    df[lyric_columns].mask(
-        no_lyrics | instrumental | language_not_english, inplace=True
-    )
+    for column in lyric_columns:
+        df[column].mask(no_lyrics, other=np.nan, inplace=True)
 
     return df
 
