@@ -51,8 +51,8 @@ def main():
     logger.info("Calculating Emolex sentiment")
     df = calculate_emolex_sentiment(df)
 
-    logger.info("Marking lyrics columns null if something weird about them")
-    df = mark_lyrics_values_na(df)
+    # logger.info("Marking lyrics columns null if something weird about them")
+    # df = mark_lyrics_values_na(df)
 
     logger.info("Saving to data/processed/")
     df.to_csv(
@@ -75,8 +75,7 @@ def find_instrumentals(df):
     # if contains word instrumental in lyrics then instrumental
     df["instrumental"] = np.where(
         ((df["lyrics"].str.len() > 0) & (df["lyrics"].str.len() <= 150))
-        | (df["instrumentalness"] > 0.7)
-        | (df["lyrics"].str.contains("instrumental")),
+        | (df["instrumentalness"] > 0.7),
         1,
         np.where(df["lyrics"].isna(), np.nan, 0),
     )
@@ -103,7 +102,7 @@ def remove_or_replace_special_characters(df):
     within_brackets_and_such = r"\[[^]]*\]|\([^)]*\)|\{[^}]*\}"
     # words marking the song structure or repetitions
     # also some found misspellings included
-    song_structure_info = r"chorus|bridge|verse|chorous|repeat"
+    song_structure_info = r"chorus|bridge|verse|chorous|repeat|instrumental"
 
     # markdown parts
     markdown_parts = r"\&amp quot|\&amp|\&quot"
@@ -213,7 +212,7 @@ def add_lyrics_agg_info(df):
     df["words_per_min"] = df["wordcount"] / df["duration_min"]
     df["unique_words"] = df["wordlist"].apply(lambda x: len(set(x)))
     df["unique_words_per_min"] = df["unique_words"] / df["duration_min"]
-    df["perc_words_unique"] = df["unique_words"] / df["wordcount"]
+    df["perc_words_unique"] = df["unique_words"] * 100.0 / df["wordcount"]
 
     return df
 
