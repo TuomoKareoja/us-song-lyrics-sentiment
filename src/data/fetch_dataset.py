@@ -226,12 +226,12 @@ def get_lyric_from_apis(artist, song_title, rapidapi_key, geniuslyrics_key):
     lyric, source = get_lyrics_mouritz(
         artist, song_title, use_spotify_api=False, rapidapi_key=rapidapi_key
     )
-    # if lyric is None or (1 > len(lyric.strip()) > 100000):
-    # lyric, source = get_lyrics_chartlyrics(artist, song_title)
-    # if lyric is None or (1 > len(lyric.strip()) > 100000):
-    #     lyric, source = get_lyrics_geniuslyrics(
-    #         artist, song_title, geniuslyrics_key=geniuslyrics_key
-    #     )
+    if lyric is None or (1 > len(lyric.strip()) > 100000):
+        lyric, source = get_lyrics_chartlyrics(artist, song_title)
+    if lyric is None or (1 > len(lyric.strip()) > 100000):
+        lyric, source = get_lyrics_geniuslyrics(
+            artist, song_title, geniuslyrics_key=geniuslyrics_key
+        )
     if lyric is None or (1 > len(lyric.strip()) > 100000):
 
         # wait because second time addressing mourits
