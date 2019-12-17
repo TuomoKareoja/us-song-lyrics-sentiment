@@ -13,10 +13,21 @@ from nltk.corpus import stopwords
 
 # Setting styles
 InteractiveShell.ast_node_interactivity = "all"
-sns.set(style="whitegrid", color_codes=True, rc={"figure.figsize": (10.7, 8.27)})
+sns.set(style="ticks", color_codes=True, rc={"figure.figsize": (11.5, 8.00)})
+sns.set_context("talk")
 
 # setting random seed
 random_seed = 123
+
+# %% defining helper functions for quantiles
+
+
+def perc95(series):
+    return series.quantile(q=0.95)
+
+
+def perc05(series):
+    return series.quantile(q=0.05)
 
 
 # %% load_data
@@ -85,11 +96,33 @@ plt.ylabel("% of Words Unique")
 
 plt.show()
 
-sns.lineplot(x="year", y="words_per_min", data=df)
+sns.lineplot(
+    x="year",
+    y="words_per_min",
+    data=df,
+    ci=None,
+    estimator=perc95,
+    label="95 %",
+    color="pink",
+)
+sns.lineplot(
+    x="year", y="words_per_min", data=df, ci=None, label="Average", color="Black"
+)
+sns.lineplot(
+    x="year",
+    y="words_per_min",
+    data=df,
+    ci=None,
+    estimator=perc05,
+    label="5 %",
+    color="lightblue",
+)
 plt.title("Average Words per Minute by Year")
 plt.ylim(bottom=0)
 plt.xlabel("Year")
 plt.ylabel("Wordcount")
+sns.despine()
+plt.tight_layout()
 plt.savefig(os.path.join("reports", "figures", "average_words_per_minute_by_year.png"))
 plt.show()
 
@@ -103,26 +136,87 @@ plt.show()
 
 # %% Spotify audio features over time
 
-sns.lineplot(x="year", y="duration_min", data=df)
+
+sns.lineplot(
+    x="year",
+    y="duration_min",
+    ci=None,
+    data=df,
+    estimator=perc95,
+    label="95 %",
+    color="pink",
+)
+sns.lineplot(
+    x="year", y="duration_min", ci=None, data=df, label="Average", color="black"
+)
+sns.lineplot(
+    x="year",
+    y="duration_min",
+    ci=None,
+    data=df,
+    estimator=perc05,
+    label="5 %",
+    color="lightblue",
+)
 plt.ylim(bottom=0)
 plt.title("Song Duration by Year")
 plt.xlabel("Year")
-plt.ylabel("Average Duration in Seconds")
+plt.ylabel("Minutes")
+sns.despine()
+plt.tight_layout()
 plt.savefig(os.path.join("reports", "figures", "average_duration_by_year.png"))
 plt.show()
 
-sns.lineplot(x="year", y="loudness", data=df)
+# %%
+
+sns.lineplot(
+    x="year",
+    y="loudness",
+    ci=None,
+    estimator=perc95,
+    data=df,
+    label="95 %",
+    color="pink",
+)
+sns.lineplot(x="year", y="loudness", ci=None, data=df, color="black", label="Average")
+sns.lineplot(
+    x="year",
+    y="loudness",
+    ci=None,
+    estimator=perc05,
+    data=df,
+    label="95 %",
+    color="lightblue",
+)
 plt.title("Song Decibels by Year")
 plt.xlabel("Year")
 plt.ylabel("Average Decibels by Year")
+sns.despine()
+plt.tight_layout()
 plt.savefig(os.path.join("reports", "figures", "average_decibels_by_year.png"))
 plt.show()
 
-sns.lineplot(x="year", y="tempo", data=df)
+# %%
+
+sns.lineplot(
+    x="year", y="tempo", ci=None, estimator=perc95, data=df, label="95 %", color="pink"
+)
+sns.lineplot(x="year", y="tempo", ci=None, data=df)
+sns.lineplot(
+    x="year",
+    y="tempo",
+    ci=None,
+    estimator=perc05,
+    data=df,
+    label="5 %",
+    color="lightblue",
+)
 plt.ylim(bottom=0)
 plt.title("Song Tempo by Year")
 plt.xlabel("Year")
 plt.ylabel("Average Beats per Minute")
+sns.despine()
+plt.tight_layout()
 plt.savefig(os.path.join("reports", "figures", "average_tempo_by_year.png"))
 plt.show()
 
@@ -138,6 +232,8 @@ plt.xlabel("Year")
 plt.ylabel("Feature Value")
 plt.show()
 
+# %%
+
 sns.lineplot(x="year", y="danceability", data=df, ci=None, label="Danceability")
 sns.lineplot(x="year", y="energy", data=df, ci=None, label="Energy")
 sns.lineplot(x="year", y="acousticness", data=df, ci=None, label="Acousticness")
@@ -145,42 +241,77 @@ plt.ylim(bottom=0)
 plt.title("Average Value of Spotify Audio Features by Year")
 plt.xlabel("Year")
 plt.ylabel("Feature Value")
+sns.despine()
+plt.tight_layout()
 plt.savefig(os.path.join("reports", "figures", "the_victory_of_electric_music.png"))
 plt.show()
 
-sns.lineplot(x="year", y="valence", data=df)
+# %%
+
+sns.lineplot(
+    x="year",
+    y="valence",
+    ci=None,
+    estimator=perc95,
+    data=df,
+    label="95 %",
+    color="pink",
+)
+sns.lineplot(x="year", y="valence", ci=None, data=df, label="Average", color="Black")
+sns.lineplot(
+    x="year",
+    y="valence",
+    ci=None,
+    estimator=perc05,
+    data=df,
+    label="5 %",
+    color="lightblue",
+)
 plt.ylim(bottom=0)
 plt.title("Average Valence by Year")
 plt.xlabel("Year")
 plt.ylabel("Valence")
+sns.despine()
+plt.tight_layout()
 plt.savefig(os.path.join("reports", "figures", "spotify_valence_by_year.png"))
 plt.show()
 
 
 # %% Afinn sentiment with time
 
-sns.lineplot(x="year", y="sentiment_abs", data=df, label="Absolute Sentiment")
-sns.lineplot(x="year", y="sentiment_positive", data=df, label="Positive Sentiment")
-sns.lineplot(x="year", y="sentiment_negative", data=df, label="Negative Sentiment")
+sns.lineplot(x="year", y="sentiment_abs", data=df, ci=None, label="Absolute Sentiment")
+sns.lineplot(
+    x="year", y="sentiment_positive", data=df, ci=None, label="Positive Sentiment"
+)
+sns.lineplot(
+    x="year", y="sentiment_negative", data=df, ci=None, label="Negative Sentiment"
+)
 plt.ylim(bottom=0)
 plt.title("Average Afinn Sentiment by Year and Type")
 plt.xlabel("Year")
 plt.ylabel("Sentiment")
 plt.show()
 
+# %%
+
 # sns.lineplot(x="year", y="sentiment_abs_per_word", data=df, label="Absolute Sentiment")
 sns.lineplot(
-    x="year", y="sentiment_positive_per_word", data=df, label="Positive Sentiment"
+    x="year", y="sentiment_negative_per_word", ci=None, data=df, label="Negative"
 )
 sns.lineplot(
-    x="year", y="sentiment_negative_per_word", data=df, label="Negative Sentiment"
+    x="year", y="sentiment_positive_per_word", ci=None, data=df, label="Positive"
 )
+
 plt.ylim(bottom=0)
 plt.title("Average Afinn Sentiment per Word by Year and Type")
 plt.xlabel("Year")
 plt.ylabel("Sentiment per Word")
+sns.despine()
+plt.tight_layout()
 plt.savefig(os.path.join("reports", "figures", "average_afinn_sentiment_by_year.png"))
 plt.show()
+
+# %%
 
 sns.lineplot(x="year", y="sentiment_abs_per_min", data=df, label="Absolute Sentiment")
 sns.lineplot(
@@ -212,22 +343,61 @@ plt.xlabel("Year")
 plt.ylabel("Sentiment")
 plt.show()
 
+# %%
+
+sns.lineplot(x="year", y="nrc_joy_per_word", ci=None, data=df, label="Joy", color="red")
 sns.lineplot(
-    x="year", y="nrc_anticipation_per_word", ci=None, data=df, label="Anticipation"
+    x="year",
+    y="nrc_anticipation_per_word",
+    ci=None,
+    data=df,
+    label="Anticipation",
+    color="lightgrey",
 )
-sns.lineplot(x="year", y="nrc_disgust_per_word", ci=None, data=df, label="Disgust")
-sns.lineplot(x="year", y="nrc_surprise_per_word", ci=None, data=df, label="Surprise")
-sns.lineplot(x="year", y="nrc_trust_per_word", ci=None, data=df, label="Trust")
-sns.lineplot(x="year", y="nrc_sadness_per_word", ci=None, data=df, label="Sadness")
-sns.lineplot(x="year", y="nrc_anger_per_word", ci=None, data=df, label="Anger")
-sns.lineplot(x="year", y="nrc_joy_per_word", ci=None, data=df, label="Joy")
-sns.lineplot(x="year", y="nrc_fear_per_word", ci=None, data=df, label="Fear")
+sns.lineplot(
+    x="year",
+    y="nrc_disgust_per_word",
+    ci=None,
+    data=df,
+    label="Disgust",
+    color="lightgrey",
+)
+sns.lineplot(
+    x="year",
+    y="nrc_surprise_per_word",
+    ci=None,
+    data=df,
+    label="Surprise",
+    color="lightgrey",
+)
+sns.lineplot(
+    x="year", y="nrc_trust_per_word", ci=None, data=df, label="Trust", color="lightgrey"
+)
+sns.lineplot(
+    x="year",
+    y="nrc_sadness_per_word",
+    ci=None,
+    data=df,
+    label="Sadness",
+    color="lightgrey",
+)
+sns.lineplot(
+    x="year", y="nrc_anger_per_word", ci=None, data=df, label="Anger", color="lightgrey"
+)
+sns.lineplot(
+    x="year", y="nrc_fear_per_word", ci=None, data=df, label="Fear", color="lightgrey"
+)
 plt.ylim(bottom=0)
 plt.title("Average NRC Sentiment per Word by Year and Type")
 plt.xlabel("Year")
 plt.ylabel("Sentiment")
+plt.legend(loc=3)
+sns.despine()
+plt.tight_layout()
 plt.savefig(os.path.join("reports", "figures", "average_nrc_sentiment_by_year.png"))
 plt.show()
+
+# %%
 
 sns.lineplot(
     x="year", y="nrc_anticipation_per_min", ci=None, data=df, label="Anticipation"
@@ -245,6 +415,8 @@ plt.xlabel("Year")
 plt.ylabel("Sentiment per Minute")
 plt.show()
 
+# %%
+
 sns.lineplot(x="year", y="nrc_positive", data=df, label="Positive")
 sns.lineplot(x="year", y="nrc_negative", data=df, label="Negative")
 plt.ylim(bottom=0)
@@ -253,16 +425,22 @@ plt.xlabel("Year")
 plt.ylabel("Sentiment")
 plt.show()
 
-sns.lineplot(x="year", y="nrc_positive_per_word", data=df, label="Positive")
-sns.lineplot(x="year", y="nrc_negative_per_word", data=df, label="Negative")
+# %%
+
+sns.lineplot(x="year", y="nrc_negative_per_word", ci=None, data=df, label="Negative")
+sns.lineplot(x="year", y="nrc_positive_per_word", ci=None, data=df, label="Positive")
 plt.ylim(bottom=0)
 plt.title("Average Overall NRC Sentiment per Word by Year")
 plt.xlabel("Year")
 plt.ylabel("Sentiment per Word")
+sns.despine()
+plt.tight_layout()
 plt.savefig(
     os.path.join("reports", "figures", "average_nrc_emotions_overall_by_year.png")
 )
 plt.show()
+
+# %%
 
 sns.lineplot(x="year", y="nrc_positive_per_min", data=df, label="Positive")
 sns.lineplot(x="year", y="nrc_negative_per_min", data=df, label="Negative")
@@ -317,35 +495,52 @@ df["emotion_index"] = df["positivity_index"] - df["negativity_index"]
 
 # %%
 
-sns.lineplot(x="year", y="positivity_index", data=df, label="Positivity")
-sns.lineplot(x="year", y="negativity_index", data=df, label="Negativity")
-sns.lineplot(x="year", y="emotion_index", data=df, label="Overall")
+sns.lineplot(x="year", y="negativity_index", ci=None, data=df, label="Negative")
+sns.lineplot(x="year", y="positivity_index", ci=None, data=df, label="Positive")
+sns.lineplot(x="year", y="emotion_index", ci=None, data=df, label="Overall")
 plt.ylim(bottom=0)
+plt.legend(loc=3)
 plt.title("Average Emotion Index by Year")
 plt.xlabel("Year")
 plt.ylabel("Emotion Index")
+sns.despine()
+plt.tight_layout()
 plt.savefig(os.path.join("reports", "figures", "emotion_index_by_year.png"))
 plt.show()
 
 
 # %% Most negative songs
 
-df[df['emotion_index'] == df['emotion_index'].min()]
+df[df["emotion_index"] == df["emotion_index"].min()]
 
 # %% Most positive songs
 
-df[df['emotion_index'] == df['emotion_index'].max()]
+df[df["emotion_index"] == df["emotion_index"].max()]
 
 # %% most lyrics
 
-df[df['wordcount'] == df['wordcount'].max()]
+df[df["wordcount"] == df["wordcount"].max()]
 
 # %% most unique lyrics
 
-df[df['unique_words'] == df['unique_words'].max()]
+df[df["unique_words"] == df["unique_words"].max()][
+    ["artist", "song", "year", "wordcount", "duration_min"]
+]
 
 # %% most lyrics per minute
 
-df[df['words_per_min'] == df['words_per_min'].max()]
+df[df["words_per_min"] == df["words_per_min"].max()][
+    ["artist", "song", "year", "words_per_min", "duration_min", "lyrics"]
+]
+
+list(df[df["words_per_min"] == df["words_per_min"].max()]["lyrics"])
+
+# %% longest song
+
+df[df["duration_min"] == df["duration_min"].max()]
+
+# %% shortest song
+
+df[df["duration_min"] == df["duration_min"].min()]
 
 # %%

@@ -51,8 +51,8 @@ def main():
     logger.info("Calculating Emolex sentiment")
     df = calculate_emolex_sentiment(df)
 
-    # logger.info("Marking lyrics columns null if something weird about them")
-    # df = mark_lyrics_values_na(df)
+    logger.info("Marking lyrics columns null if something weird about them")
+    df = mark_lyrics_values_na(df)
 
     logger.info("Saving to data/processed/")
     df.to_csv(
@@ -62,7 +62,9 @@ def main():
 
 def change_song_duration(df):
 
-    df["duration_min"] = np.round(df["duration_ms"] / (1000 * 60))
+    df["duration_min"] = np.round(df["duration_ms"] / (1000 * 60), 1)
+    # no song should be less than 1 min
+    df["duration_min"].mask(df["duration_min"] <= 1, np.nan, inplace=True)
     df.drop(columns=["duration_ms"], inplace=True)
 
     return df

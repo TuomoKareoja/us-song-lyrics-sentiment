@@ -146,9 +146,12 @@
         \item Mourits Lyrics (best, but so much down!)
         \item Genius Lyrics
         \item ChartLyrics
+    \pause
     \end{enumerate}
-    \item If the lyrics is too long, try a different API (no long bible quotes!)
     \item What you get differs from site to site as the lyrics are added by users
+    \begin{itemize}
+        \item If the lyric is weird, try a different API (no long bible quotes!)
+    \end{itemize}
 \end{itemize}
 
 \end{frame}
@@ -159,9 +162,12 @@
 \begin{itemize}
     \item Spotify has a really nice API for getting information about
     the actual audio (e.g. length, danceability, tempo, loudness...)
+    \pause
     \item You need to register an app, and the API, is bit fiddly...
+    \pause
     \item But of course there is a python package does most of the work
     for you! (spotipy)
+    \pause
     \item Still need to first find the song ID and then find the audio features
     with this, so multiple calls needed
 \end{itemize}
@@ -176,7 +182,7 @@
 \frametitle{Cleaning the Lyrics}
 
 \begin{itemize}
-    \item Lyrics are typed by humans so they contain typos and trolling
+    \item There are bots and trolling
 \end{itemize}
 
 \medskip
@@ -184,6 +190,8 @@
 \textbf{Rihanna - You Da One}
 
 Hello! dafdcdk interesting dafdcdk site! I'm really like it! Very, very dafdcdk good!
+
+\pause
 
 \bigskip
 
@@ -199,6 +207,8 @@ Hello! dafdcdk interesting dafdcdk site! I'm really like it! Very, very dafdcdk 
 
 \bigskip
 
+\pause
+
 \begin{itemize}
     \item And so many other problems too...
 \end{itemize}
@@ -213,13 +223,15 @@ Hello! dafdcdk interesting dafdcdk site! I'm really like it! Very, very dafdcdk 
     \item Try to find mention of song being instrumental from lyrics
         \begin{itemize}
             \item "Instrumental, NO LYRICS"
-            \item What if there is an instrumental part marked in the lyrics?
+            \item But what if there is an instrumental part marked in the lyrics? ("Instrumental Interlude")
         \end{itemize}
-    \item Very short lyrics
+    \pause
+    \item Using very short lyrics is better
     \begin{itemize}
-        \item "Ah ha ha ha ha ha ha ha ha ha ha ha, wipe out"
+        \item "Ah ha ha ha ha ha ha ha ha ha ha ha, wipe out", Surfaris - Wipe Out, 1963
+    \pause
     \end{itemize}
-    \item Use Spotify instrumentalness
+    \item Use Spotify's instrumentalness
     \begin{itemize}
         \item Gives and estimated probability of the song being instrumental
     \end{itemize}
@@ -235,7 +247,9 @@ Hello! dafdcdk interesting dafdcdk site! I'm really like it! Very, very dafdcdk 
 
 \begin{itemize}
     \item Billboard contains also some Spanish, French and Italian(!) songs
+    \pause
     \item These can be recognized with the langdetect package
+    \pause
     \item ...but some songs just have spanish parts (or trolling or mistakes)
 \end{itemize}
 
@@ -263,6 +277,8 @@ Hello! dafdcdk interesting dafdcdk site! I'm really like it! Very, very dafdcdk 
         \item afinn.score('Make Berlin great again!') = 3.0
     \end{itemize}
 \end{itemize}
+
+\pause
 
 \textbf{Emolex}
 
@@ -357,12 +373,12 @@ Hello! dafdcdk interesting dafdcdk site! I'm really like it! Very, very dafdcdk 
 \end{frame}
 
 %------------------------------------------------
-\subsection{Lyrics Sentiment}
+\subsection{Lyrics' Sentiment}
 
 \begin{frame}
 \frametitle{Results}
 
-\LARGE{\centerline{Lyrics Sentiment}}
+\LARGE{\centerline{Lyrics' Sentiment}}
 
 \end{frame}
 %------------------------------------------------
@@ -401,7 +417,7 @@ Hello! dafdcdk interesting dafdcdk site! I'm really like it! Very, very dafdcdk 
 \end{frame}
 
 \begin{frame}
-\frametitle{Indexed Sentiment Goes Down}
+\frametitle{Combined Measurement of Sentiment Goes Down}
 
 {
     \centering
@@ -424,7 +440,7 @@ Hello! dafdcdk interesting dafdcdk site! I'm really like it! Very, very dafdcdk 
     \item Longer
     \item Louder
     \item More danceable
-    \item Less happy (just from audio features)
+    \item Less positive (just from audio features)
 \end{enumerate}
 \bigskip
 
@@ -432,7 +448,8 @@ Hello! dafdcdk interesting dafdcdk site! I'm really like it! Very, very dafdcdk 
 \medskip
 \begin{enumerate}
     \item Longer
-    \item Less positive (less joy and positiveness)
+    \item Faster paced
+    \item Less positive (especially lack of joy)
 \end{enumerate}
 
 \end{frame}
@@ -442,8 +459,9 @@ Hello! dafdcdk interesting dafdcdk site! I'm really like it! Very, very dafdcdk 
     \begin{itemize}
         \item Most positive song: Hank Ballard and The Midnighters - Finger Poppin' Time, 1960
         \item Most negative song: Tyga - Rack City, 2012
-        \item Most words: Eminem - Rap God, 2013
-        \item Most unique words: Eminem - Rap God, 2013
+        \item Most words: 1536 words,  Eminem - Rap God, 2013
+        \item Shortest song: 1 min 36 sec, Dave Clark Five - I Like It Like That, 1974
+        \item Longest song: 26 min, Mike Oldfield - Tubular Bells, 1974
     \end{itemize}
 \end{frame}
 \begin{frame}
