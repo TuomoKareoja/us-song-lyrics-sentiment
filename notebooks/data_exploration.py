@@ -5,6 +5,7 @@ import re
 
 import matplotlib.pyplot as plt
 import collections
+import numpy as np
 import pandas as pd
 import seaborn as sns
 from IPython.core.interactiveshell import InteractiveShell
@@ -516,6 +517,10 @@ df[df["emotion_index"] == df["emotion_index"].min()]
 # %% Most positive songs
 
 df[df["emotion_index"] == df["emotion_index"].max()]
+
+# %% Most blanders songs
+
+df[round(np.absolute(df["emotion_index"]), 1) == 0]
 
 # %% most lyrics
 
